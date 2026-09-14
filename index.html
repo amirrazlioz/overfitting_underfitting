@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מנגנון זיהוי Overfitting ו-Underfitting</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 20px;
+            color: #2d3748;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        }
+        h1 {
+            text-align: center;
+            color: #1a365d;
+            margin-bottom: 8px;
+            font-size: 1.8rem;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #4a5568;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 1rem;
+        }
+        .presets-bar {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        .btn-preset {
+            border: none;
+            padding: 10px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .btn-preset:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .btn-over { background-color: #fed7d7; color: #9b2c2c; }
+        .btn-under { background-color: #feebc8; color: #9c4221; }
+        .btn-good { background-color: #c6f6d5; color: #22543d; }
+
+        .main-layout {
+            display: flex;
+            gap: 25px;
+            flex-wrap: wrap;
+        }
+        .controls-panel {
+            flex: 1;
+            min-width: 280px;
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        .graph-panel {
+            flex: 1.6;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .slider-group {
+            margin-bottom: 20px;
+        }
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+        input[type=range] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #cbd5e0;
+            outline: none;
+        }
+        
+        .status-card {
+            padding: 18px;
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        .status-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .status-desc {
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .status-overfitting { background-color: #fff5f5; border: 2px solid #e53e3e; color: #9b2c2c; }
+        .status-underfitting { background-color: #fffaf0; border: 2px solid #dd6b20; color: #9c4221; }
+        .status-good { background-color: #f0fff4; border: 2px solid #38a169; color: #22543d; }
+
+        #plot {
+            width: 100%;
+            height: 280px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        .explanation-box {
+            background-color: #edf2f7;
+            border-right: 4px solid #3182ce;
+            padding: 12px 15px;
+            border-radius: 4px;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+        .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>מעבדת זיהוי Overfitting & Underfitting</h1>
+    <p class="subtitle">השוו את ביצועי ה-<span class="math">R²</span> על נתוני ה-Train לעומת ה-Test כדי לאבחן את מצב המודל</p>
+
+    <div class="presets-bar">
+        <button class="btn-preset btn-over" onclick="setPreset(0.95, 0.60)">דוגמה 1: Overfitting מתקדם</button>
+        <button class="btn-preset btn-under" onclick="setPreset(0.55, 0.50)">דוגמה 2: Underfitting ניכר</button>
+        <button class="btn-preset btn-good" onclick="setPreset(0.82, 0.79)">דוגמה 3: מודל מאוזן וטוב</button>
+    </div>
+
+    <div class="main-layout">
+        <div class="controls-panel">
+            <div class="slider-group">
+                <div class="slider-header">
+                    <span>Train <span class="math">R²</span> (אימון)</span>
+                    <span id="trainVal" style="color: #2b6cb0;">0.82</span>
+                </div>
+                <input type="range" id="trainSlider" min="0" max="1" step="0.01" value="0.82" oninput="update()">
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-header">
+                    <span>Test <span class="math">R²</span> (מבחן)</span>
+                    <span id="testVal" style="color: #dd6b20;">0.79</span>
+                </div>
+                <input type="range" id="testSlider" min="0" max="1" step="0.01" value="0.79" oninput="update()">
+            </div>
+
+            <div id="statusCard" class="status-card status-good">
+                <div id="statusTitle" class="status-title">מודל טוב ומאוזן</div>
+                <div id="statusDesc" class="status-desc">הביצועים גבוהים והפער בין ה-Train ל-Test קטן. המודל למד דפוסים כלליים היטב.</div>
+            </div>
+        </div>
+
+        <div class="graph-panel">
+            <div id="plot"></div>
+            <div class="explanation-box">
+                <strong>כלל אצבע לתלמידים:</strong><br>
+                1. **פער גדול** בין Train ל-Test מעיד על <strong>Overfitting</strong> (המודל שילם מחיר על שינון נתוני ה-Train).<br>
+                2. **תוצאות נמוכות בשניהם** מעידות על <strong>Underfitting</strong> (המודל פשוט מדי ולא למד את החוקיות).
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function setPreset(train, test) {
+        document.getElementById('trainSlider').value = train;
+        document.getElementById('testSlider').value = test;
+        update();
+    }
+
+    function update() {
+        const train = parseFloat(document.getElementById('trainSlider').value);
+        const test = parseFloat(document.getElementById('testSlider').value);
+
+        // עדכון טקסט הסליידרים
+        document.getElementById('trainVal').innerText = train.toFixed(2);
+        document.getElementById('testVal').innerText = test.toFixed(2);
+
+        // מניעת מצב בלתי אפשרי (לרוב test נמוך מ-train)
+        const gap = train - test;
+
+        // אבחון המצב
+        const statusCard = document.getElementById('statusCard');
+        const statusTitle = document.getElementById('statusTitle');
+        const statusDesc = document.getElementById('statusDesc');
+
+        statusCard.className = 'status-card ';
+
+        if (train < 0.65 && test < 0.65) {
+            statusCard.classList.add('status-underfitting');
+            statusTitle.innerText = 'חשד ל-Underfitting';
+            statusDesc.innerText = 'שני המדדים נמוכים. המודל פשוט מדי, אינו מצליח ללמוד את הדפוסים בנתונים ונדרש מודל מורכב יותר.';
+        } else if (gap > 0.15) {
+            statusCard.classList.add('status-overfitting');
+            statusTitle.innerText = 'חשד ל-Overfitting';
+            statusDesc.innerText = `פער גדול מאוד (${(gap*100).toFixed(0)}%) בין ה-Train ל-Test! המודל זכר את הנתונים באימון אך נכשל בהכללה לנתונים חדשים.`;
+        } else {
+            statusCard.classList.add('status-good');
+            statusTitle.innerText = 'מודל תקין ומאוזן';
+            statusDesc.innerText = 'הביצועים למידה גבוהים והפער קטן. המודל מצליח להכליל נכון גם על נתוני מבחן חדשים.';
+        }
+
+        // ניתוח הגרף
+        plotGraph(train, test);
+    }
+
+    function plotGraph(train, test) {
+        const trace = {
+            x: ['Train R²', 'Test R²'],
+            y: [train, test],
+            type: 'bar',
+            marker: {
+                color: ['#3182ce', '#dd6b20']
+            },
+            text: [train.toFixed(2), test.toFixed(2)],
+            textposition: 'auto',
+            hoverinfo: 'none'
+        };
+
+        const layout = {
+            title: { text: 'השוואת ביצועים (R²)', font: { size: 14 } },
+            yaxis: { range: [0, 1.05], title: 'מדד R²' },
+            margin: { l: 40, r: 20, t: 35, b: 30 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)'
+        };
+
+        Plotly.newPlot('plot', [trace], layout, {displayModeBar: false, responsive: true});
+    }
+
+    // הפעלה ראשונית
+    update();
+</script>
+
+</body>
+</html>
